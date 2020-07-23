@@ -1,0 +1,163 @@
+<html>
+  <head>
+    <script src="../canvas.js"></script>
+    <script src="../mmcq.js"></script>
+    <script src="../image-sold-his-color.js"></script>
+    <script src="../echarts.min.js"></script>
+    <script src="../jquery.min.js"></script>
+    <style>
+      body {
+        margin: 0;
+        width: 100%;
+      }
+      .wrapper {
+        margin: 0 auto;
+        text-align: center;
+        /* width: 800px; */
+      }
+      img {
+        max-width: 100%;
+        border: 4px solid #fff;
+        box-shadow: 1px 2px 3px #2345;
+        display: block;
+        margin: 0 auto;
+      }
+      .dominantColor {
+        margin-bottom: 20px;
+        padding: 40px;
+        position: relative;
+      }
+      .paletteColors div {
+        display: inline-block;
+      }
+      #chart {
+        width: 800px;
+        height: 400px;
+        margin: 20px auto;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrapper">
+      <div class="dominantColor">
+        <input
+          type="file"
+          id="file"
+          title="选择图片"
+          style="
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            left: 0;
+            top: 0;
+            opacity: 0;
+          "
+          accept="image/png, image/jpeg, image/bmp, image/gif, image/*"
+        />
+        <img src="images/5b.jpg" id="img" />
+      </div>
+      <div class="paletteColors"></div>
+      <div id="chart"></div>
+    </div>
+  </body>
+  <script>
+    var init = function () {
+      var imgSource = $("#img")[0];
+      var imageSoldHisColor = new ImageSoldHisColor();
+      var paletteColors = imageSoldHisColor.getPalette(imgSource, 10);
+
+      var dominantColor = paletteColors[0].color;
+
+      var dominantColorTag = $(".dominantColor")[0];
+      dominantColorTag.style.backgroundColor = colorRGB2Hex(dominantColor);
+
+      let data = [];
+
+      var sum = 0;
+      for (var i = 0; i < paletteColors.length; i++) {
+        var item = paletteColors[i];
+        let name = colorReturn(item.color);
+
+        data.push({
+          name: name,
+          value: item.num,
+        });
+        sum += item.num;
+      }
+      data = data
+        .map(function (item) {
+          item.percent = (item.value / sum) * 100;
+          return item;
+        })
+        .filter((item) => item.percent > 1);
+
+      var myChart = echarts.init(document.getElementById("chart"));
+      var option = {
+        tooltip: {},
+        tooltip: {
+          trigger: "item",
+          formatter: "{b}: {c} ({d}%)",
+        },
+        legend: {
+          orient: "vertical",
+          right: 3,
+          icon: "rect",
+          itemWidth: 60,
+          itemHeight: 30,
+          top: "center",
+        },
+        color: data.map((item) => item.name),
+        series: [
+          {
+            type: "pie",
+            radius: ["40%", "70%"],
+            avoidLabelOverlap: false,
+            label: {
+              show: true,
+              position: "inner",
+              formatter: "{d}%", // {b}:
+            },
+            // labelLine: { length: 30, length2: 10 },
+            emphasis: {
+              label: {
+                show: true,
+                position: "center",
+                fontSize: "30",
+                fontWeight: "bold",
+                formatter: function (e) {
+                  return e.percent + " %";
+                },
+              },
+            },
+            data: data,
+          },
+        ],
+      };
+      // 使用刚指定的配置项和数据显示图表。
+      myChart.setOption(option);
+    };
+
+    window.onload = init;
+    const input = document.querySelector("input");
+
+    function updateImageDisplay() {
+      for (const file of input.files) {
+        $("#img")[0].src = URL.createObjectURL(file);
+        setTimeout(() => {
+          init();
+        }, 400);
+      }
+    }
+
+    $("#file").on("change", updateImageDisplay);
+
+    function colorReturn(rgbArr) {
+      return "rgb(" + rgbArr[0] + "," + rgbArr[1] + "," + rgbArr[2] + ")";
+    }
+    function colorRGB2Hex([r, g, b]) {
+      var hex =
+        "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+      return hex;
+    }
+  </script>
+</html>
