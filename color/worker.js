@@ -1,6 +1,7 @@
 var VEC_LEN = 4;
 
 onmessage = function (e) {
+ 
     var imgData = e.data[0];
     var k = e.data[1];
     var numPixels = e.data[2];
@@ -36,8 +37,8 @@ onmessage = function (e) {
     Module._free(imgMem);
     Module._free(centersMem);
     Module._free(labelsMem);
-
-    postMessage(["result", colors, labels]);
+ 
+    postMessage(["result", colors, labels,e.data[3]]);
 }
 
 var Module = {

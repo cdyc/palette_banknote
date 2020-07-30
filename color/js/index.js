@@ -14,19 +14,56 @@ var getPercent = ([colors, labels]) =>
     }))
     .sort((a, b) => b.percent - a.percent);
 
-var refreshChart = (data) => {
+var getLight = ([R, G, B]) => (R * 299 + G * 587 + B * 114) / 1000;
+
+var convertBlackData = (data) => {
+  var pixels = _.clone(data);
+  //遍历像素点
+  for (let i = 0; i < pixels.length; i += 4) {
+    let r = pixels[i];
+    let g = pixels[i + 1];
+    let b = pixels[i + 2];
+    //获取灰色
+    let gray = getLight([r, g, b]);
+
+    pixels[i] = gray;
+    pixels[i + 1] = gray;
+    pixels[i + 2] = gray;
+  }
+  return pixels;
+};
+
+var handleBlack = (app, img) => {
+  const obj = document.querySelector("#canvas2");
+  const ctx = obj.getContext("2d");
+  ctx.canvas.width = app.width;
+  ctx.canvas.height = app.height;
+
+  var ctx2 = document.querySelector("#canvas").getContext("2d");
+  var imageData = ctx2.getImageData(0, 0, app.width, app.height);
+
+  ctx.drawImage(img, 0, 0, app.width, app.height);
+
+  // 获取图片像素信息
+  imageData.data = convertBlackData(imageData.data);
+ 
+  ctx.putImageData(imageData, 0, 0);
+  return imageData.data
+};
+
+var getOption = (data) => {
   return {
-    backgroundColor:'#fff',
+    backgroundColor: "#fff",
     tooltip: {},
     tooltip: {
       trigger: "item",
       formatter: "{b}: {c} ({d}%)",
     },
-    grid:{ 
-        x:5,
-        y:5,
-        x2:5,
-        y2:5
+    grid: {
+      x: 5,
+      y: 5,
+      x2: 5,
+      y2: 5,
     },
     legend: {
       orient: "vertical",
@@ -46,16 +83,17 @@ var refreshChart = (data) => {
           show: true,
           formatter: (e) => e.percent.toFixed(1) + "%",
           textStyle: {
-            fontSize: 18,
+            fontSize: 16,
             color: "rgb(53,76,114)",
           },
+          position:'inner'
         },
-        labelLine: { length: 20, length2: 10 },
+        // labelLine: { length: 20, length2: 10 },
         emphasis: {
           label: {
             show: true,
             position: "center",
-            fontSize: "30",
+            fontSize: "24",
             fontWeight: "bold",
             formatter: function (e) {
               return e.percent + " %";
@@ -74,13 +112,17 @@ var App = new Vue({
     moduleInitialized: false,
     imageLoaded: false,
     labels: [],
+    labels2: [],
     pixels: [],
+    pixels2: [],
     percent: [],
+    percent2: [],
     colorHoverIdx: -1,
     width: 0,
     height: 0,
-    bgColor: "#fff",
-    numColors: "8",
+    bgColor: "#fff", 
+    numColors: "6",
+    numColors2: "4",
     running: false,
   },
   created: function () {
@@ -94,9 +136,13 @@ var App = new Vue({
     numColors() {
       this.run();
     },
+    numColors2() {
+      this.run();
+    },
   },
   mounted: function () {
-    var myChart = echarts.init(document.getElementById("chart"));
+    var myChart = echarts.init(document.querySelector("#chart"));
+    var myChart2 = echarts.init(document.querySelector("#chart2"));
 
     this.loadFileFromUrl(
       "./img/Brazil_BCB_2_reais_2010.00.00_B874f_P252_FB_036655446_r.jpg"
@@ -104,30 +150,50 @@ var App = new Vue({
 
     var app = this;
     app.$on("kmeansDone", function (data) {
-      app.labels = data[1];
       app.running = false;
-      let percent = getPercent(data);
 
-      let option = refreshChart(
-        percent.map((item) => {
-          let { c, m, y, k } = colorsys.rgbToCmyk(
-            item.color[0],
-            item.color[1],
-            item.color[2]
-          );
-          return {
-            name: `cmyk(${(c * 100).toFixed(0)},${(m * 100).toFixed(0)},${(
-              y * 100
-            ).toFixed(0)},${(k * 100).toFixed(0)})`,
-            color: app.colorRGB2Hex(item.color),
-            value: Number(item.percent.toFixed(1)),
-          };
-        })
-      );
+      if (data[2] === "color") {
+        app.labels = data[1];
+        let percent = getPercent(data);
+        let option = getOption(
+          percent.map((item) => {
+            let { c, m, y, k } = colorsys.rgbToCmyk(
+              item.color[0],
+              item.color[1],
+              item.color[2]
+            );
+            return {
+              name: `cmyk(${(c * 100).toFixed(0)},${(m * 100).toFixed(0)},${(
+                y * 100
+              ).toFixed(0)},${(k * 100).toFixed(0)})`,
+              color: app.colorRGB2Hex(item.color),
+              value: Number(item.percent.toFixed(1)),
+            };
+          })
+        );
+        app.percent = percent;
+        myChart.setOption(option);
+      } else {
+        app.labels2 = data[1];
 
-      myChart.setOption(option);
-
-      app.percent = percent;
+        let percent = getPercent(data);
+        let option = getOption(
+          percent.map((item) => {
+            let { k } = colorsys.rgbToCmyk(
+              item.color[0],
+              item.color[1],
+              item.color[2]
+            );
+            return {
+              name: `black: ${(k * 100).toFixed(0)}`,
+              color: app.colorRGB2Hex(item.color),
+              value: Number(item.percent.toFixed(1)),
+            };
+          })
+        );
+        app.percent2 = percent;
+        myChart2.setOption(option);
+      }
     });
 
     myChart.on("mouseover", function (params) {
@@ -140,22 +206,45 @@ var App = new Vue({
     myChart.on("mouseout", () => {
       app.handleMouseLeaveColors();
     });
+
+    myChart2.on("mouseover", function (params) {
+      if (app.percent2.length === 0) {
+        return;
+      }
+      let idx = params.dataIndex;
+      app.handleMouseOverColor2(app.percent2[idx].idx);
+    });
+    myChart2.on("mouseout", () => {
+      app.handleMouseLeaveColors("canvas2");
+    });
   },
   methods: {
-    run: function () {
-      // Run the algorithm
+    handleImage: function (id) {
       var app = this;
-      app.running = true;
-      var ctx = document.getElementById("canvas").getContext("2d");
-
+      var ctx = document.querySelector(id).getContext("2d");
       // Prepare the parameters
       var data = ctx.getImageData(0, 0, app.width, app.height);
       var k = parseInt(this.numColors, 10);
       var imgData = Float64Array.from(data.data);
       var numPixels = imgData.length / VEC_LEN;
+
       app.pixels = Array.from(imgData);
 
-      worker.postMessage([imgData, k, numPixels]);
+      worker.postMessage([imgData, k, numPixels, "color"]);
+
+      var dataBlack = convertBlackData(imgData);
+      worker.postMessage([
+        dataBlack,
+        parseInt(this.numColors2, 10),
+        numPixels,
+        "black",
+      ]);
+    },
+    run: function () {
+      this.running = true;
+
+      // 处理左边彩色图像
+      this.handleImage("#canvas");
     },
     loadFileFromUrl: function (url) {
       var app = this;
@@ -168,12 +257,15 @@ var App = new Vue({
         app.width = Math.min(this.width, MAX_WIDTH);
         app.height = app.width / ratio;
 
-        var ctx = document.getElementById("canvas").getContext("2d");
+        var ctx = document.querySelector("#canvas").getContext("2d");
         ctx.canvas.width = app.width;
         ctx.canvas.height = app.height;
-
         ctx.drawImage(img, 0, 0, app.width, app.height);
+
+        app.pixels2 = handleBlack(app, img);
+
         app.pixels = ctx.getImageData(0, 0, app.width, app.height);
+
         app.imageLoaded = true;
         let { color } = colorThief.getColor(img);
         app.bgColor = app.colorRGB2Hex(color);
@@ -186,8 +278,11 @@ var App = new Vue({
 
       app.imageLoaded = false;
       app.percent = [];
+      app.percent2 = [];
       app.labels = [];
+      app.labels2 = [];
       app.pixels = [];
+      app.pixels2 = [];
       app.bgColor = "#fff";
 
       app.colorHoverIdx = -1;
@@ -207,8 +302,14 @@ var App = new Vue({
             var ctx = document.getElementById("canvas").getContext("2d");
             ctx.canvas.width = app.width;
             ctx.canvas.height = app.height;
-
             ctx.drawImage(img, 0, 0, app.width, app.height);
+
+            // var ctx2 = document.getElementById("canvas2").getContext("2d");
+            // ctx2.canvas.width = app.width;
+            // ctx2.canvas.height = app.height;
+            // ctx2.drawImage(img, 0, 0, app.width, app.height);
+            app.pixels2 = handleBlack(app, img);
+
             app.pixels = ctx.getImageData(0, 0, app.width, app.height);
             app.imageLoaded = true;
 
@@ -256,30 +357,62 @@ var App = new Vue({
         ctx.putImageData(imageData, 0, 0);
       }
     },
-    handleMouseLeaveColors: function () {
+    handleMouseOverColor2: function (colorIdx) {
+      var app = this;
+      if (app.colorHoverIdx != colorIdx) {
+        app.colorHoverIdx = colorIdx;
+        var ctx = document.getElementById("canvas2").getContext("2d");
+        var imageData = ctx.getImageData(0, 0, app.width, app.height);
+
+        var data = imageData.data;
+        for (var i = 0; i < data.length; i += 4) {
+          if (app.labels2[i / 4] != app.colorHoverIdx) {
+            // Make pixel transparent
+            data[i + 3] = 0;
+          } else {
+            // Reset the pixel
+            data[i] = app.pixels2[i];
+            data[i + 1] = app.pixels2[i + 1];
+            data[i + 2] = app.pixels2[i + 2];
+            data[i + 3] = app.pixels2[i + 3];
+          }
+        }
+        ctx.putImageData(imageData, 0, 0);
+      }
+    },
+    handleMouseLeaveColors: function (id = "canvas") {
       // Reset the canvas
       var app = this;
       app.colorHoverIdx = -1;
-      var ctx = document.getElementById("canvas").getContext("2d");
+      var ctx = document.getElementById(id).getContext("2d");
       var imageData = ctx.getImageData(0, 0, app.width, app.height);
 
       var data = imageData.data;
       for (var i = 0; i < data.length; i += 4) {
         // Reset the pixel
-        data[i] = app.pixels[i];
-        data[i + 1] = app.pixels[i + 1];
-        data[i + 2] = app.pixels[i + 2];
-        data[i + 3] = app.pixels[i + 3];
+        if (id === "canvas") {
+          data[i] = app.pixels[i];
+          data[i + 1] = app.pixels[i + 1];
+          data[i + 2] = app.pixels[i + 2];
+          data[i + 3] = app.pixels[i + 3];
+        } else {
+          {
+            data[i] = app.pixels2[i];
+            data[i + 1] = app.pixels2[i + 1];
+            data[i + 2] = app.pixels2[i + 2];
+            data[i + 3] = app.pixels2[i + 3];
+          }
+        }
       }
       ctx.putImageData(imageData, 0, 0);
     },
-    save: function(){
-        html2canvas(document.querySelector("#main")).then(canvas => {
-            canvas.toBlob(function(blob) {
-                saveAs(blob, "主题色提取.png");
-            });
+    save: function () {
+      html2canvas(document.querySelector("#container")).then((canvas) => {
+        canvas.toBlob(function (blob) {
+          saveAs(blob, "主题色提取.png");
         });
-    }
+      });
+    },
   },
 });
 
@@ -291,5 +424,3 @@ worker.onmessage = function (e) {
     App.$emit("kmeansDone", data.splice(1));
   }
 };
-
-
