@@ -6,7 +6,10 @@
   "directories": {
     "example": "example"
   },
-  "dependencies": {},
+  "dependencies": {
+    "get-pixels": "^3.3.2",
+    "quantize": "^1.0.2"
+  },
   "devDependencies": {
     "connect": "^3.6.3",
     "connect-livereload": "^0.6.0",
