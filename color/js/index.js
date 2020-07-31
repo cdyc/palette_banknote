@@ -46,9 +46,9 @@ var handleBlack = (app, img) => {
 
   // 获取图片像素信息
   imageData.data = convertBlackData(imageData.data);
- 
+
   ctx.putImageData(imageData, 0, 0);
-  return imageData.data
+  return imageData.data;
 };
 
 var getOption = (data) => {
@@ -86,7 +86,7 @@ var getOption = (data) => {
             fontSize: 16,
             color: "rgb(53,76,114)",
           },
-          position:'inner'
+          position: "inner",
         },
         // labelLine: { length: 20, length2: 10 },
         emphasis: {
@@ -120,7 +120,7 @@ var App = new Vue({
     colorHoverIdx: -1,
     width: 0,
     height: 0,
-    bgColor: "#fff", 
+    bgColor: "#fff",
     numColors: "6",
     numColors2: "4",
     running: false,
@@ -407,7 +407,12 @@ var App = new Vue({
       ctx.putImageData(imageData, 0, 0);
     },
     save: function () {
-      html2canvas(document.querySelector("#container")).then((canvas) => {
+      html2canvas(document.querySelector("#container"), {
+        background: "#ffffff", // 一定要添加背景颜色，否则出来的图片，背景全部都是透明的
+        dpi: 300, // 处理模糊问题 
+        foreignObjectRendering: true,
+        scale: 2,
+      }).then((canvas) => {
         canvas.toBlob(function (blob) {
           saveAs(blob, "主题色提取.png");
         });
